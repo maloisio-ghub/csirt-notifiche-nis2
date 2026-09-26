@@ -76,4 +76,17 @@ public class IncidenteController {
         }
         return ResponseEntity.notFound().build();
     }
+@GetMapping("/{id}/json")
+    public ResponseEntity<Incidente> scaricaJson(@PathVariable Long id) {
+        Optional<Incidente> incidenteOpt = repository.findById(id);
+        
+        if (incidenteOpt.isPresent()) {
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            headers.setContentDispositionFormData("attachment", "Notifica_CSIRT_" + id + ".json");
+            
+            return ResponseEntity.ok().headers(headers).body(incidenteOpt.get());
+        }
+        return ResponseEntity.notFound().build();
+    }    
 }

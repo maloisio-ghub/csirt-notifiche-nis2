@@ -16,7 +16,10 @@
         button:hover { background-color: #004494; }
         button.update-btn { background-color: #d9534f; }
         button.update-btn:hover { background-color: #c9302c; }
+        button.final-btn { background-color: #5cb85c; }
+        button.final-btn:hover { background-color: #4cae4c; }
         #messaggioSuccesso { display: none; background-color: #d4edda; color: #155724; padding: 15px; margin-top: 15px; border-radius: 4px; border: 1px solid #c3e6cb; }
+        .btn-group { display: flex; gap: 10px; margin-top: 15px; }
     </style>
 </head>
 <body>
@@ -27,7 +30,7 @@
 
     <!-- FASE 1: PRE-NOTIFICA -->
     <div id="step-prenotifica">
-        <h3>Fase 1: Pre-Notifica (Entro 24h)</h3>
+        <h3 style="color: #0056b3;">Fase 1: Pre-Notifica (Entro 24h)</h3>
         
         <div class="form-group">
             <label for="denominazioneEnte">Denominazione Ente / Organizzazione:</label>
@@ -52,10 +55,10 @@
         <button onclick="inviaPreNotifica()">Trasmetti Pre-Notifica (24h)</button>
     </div>
 
-    <!-- FASE 2: NOTIFICA COMPLETA (Inizialmente nascosta) -->
+    <!-- FASE 2: NOTIFICA COMPLETA -->
     <div id="step-notificacompleta" style="display: none;">
         <h3>Fase 2: Notifica Completa (Entro 72h)</h3>
-        <p>Integrazione dei dati della Pratica ID: <strong id="display-id"></strong></p>
+        <p>Integrazione dei dati della Pratica ID: <strong id="display-id-72"></strong></p>
         
         <div class="form-group">
             <label for="impattoSuiServizi">Valutazione Impatto sui Servizi:</label>
@@ -74,6 +77,24 @@
         <button class="update-btn" onclick="inviaNotificaCompleta()">Aggiorna e Trasmetti Notifica (72h)</button>
     </div>
 
+    <!-- FASE 3: RELAZIONE FINALE -->
+    <div id="step-relazionefinale" style="display: none;">
+        <h3 style="color: #5cb85c;">Fase 3: Relazione Finale (Entro 1 Mese)</h3>
+        <p>Chiusura della Pratica ID: <strong id="display-id-1m"></strong></p>
+        
+        <div class="form-group">
+            <label for="rootCauseAnalysis">Root Cause Analysis (Causa Scatenante):</label>
+            <input type="text" id="rootCauseAnalysis" placeholder="Es. Vulnerabilità non patchata CVE-XXXX" required>
+        </div>
+
+        <div class="form-group">
+            <label for="azioniMitigazione">Azioni di Mitigazione e Remediation:</label>
+            <input type="text" id="azioniMitigazione" placeholder="Es. Isolamento segmenti di rete, reset password" required>
+        </div>
+
+        <button class="final-btn" onclick="inviaRelazioneFinale()">Trasmetti Relazione Finale (1 Mese)</button>
+    </div>
+
     <!-- MESSAGGIO DI SUCCESSO -->
     <div id="messaggioSuccesso"></div>
 </div>
@@ -81,22 +102,14 @@
 <script>
     let incidenteIdAttuale = null;
 
-    // 1. Invia Pre-Notifica (Metodo POST)
     async function inviaPreNotifica() {
         const ente = document.getElementById('denominazioneEnte').value;
         const categoria = document.getElementById('categoriaAcn').value;
         const descrizione = document.getElementById('descrizioneIniziale').value;
 
-        if(!ente || !descrizione) {
-            alert("Compila tutti i campi della Pre-Notifica.");
-            return;
-        }
+        if(!ente || !descrizione) { alert("Compila tutti i campi della Pre-Notifica."); return; }
 
-        const payload = {
-            denominazioneEnte: ente,
-            categoriaAcn: categoria,
-            descrizioneIniziale: descrizione
-        };
+        const payload = { denominazioneEnte: ente, categoriaAcn: categoria, descrizioneIniziale: descrizione };
 
         try {
             const response = await fetch('/api/incidenti/prenotifica', {
@@ -109,36 +122,49 @@
                 const result = await response.json();
                 incidenteIdAttuale = result.id; 
                 
-                // Nascondi Fase 1 e mostra Fase 2
                 document.getElementById('step-prenotifica').style.display = 'none';
                 document.getElementById('step-notificacompleta').style.display = 'block';
-                document.getElementById('display-id').innerText = incidenteIdAttuale;
+                document.getElementById('display-id-72').innerText = incidenteIdAttuale;
                 
                 const msgBox = document.getElementById('messaggioSuccesso');
                 msgBox.style.display = 'block';
-                msgBox.innerHTML = `<strong>Fase 1 Superata!</strong> Pratica creata con ID: ${incidenteIdAttuale}. Il timer delle 72h è partito.`;
+                msgBox.innerHTML = `<strong>Fase 1 Superata!</strong> Pratica creata con ID: ${incidenteIdAttuale}.`;
             }
-        } catch (error) {
-            console.error(error);
-            alert("Errore di connessione col server.");
-        }
+        } catch (error) { console.error(error); alert("Errore di connessione col server."); }
     }
 
-    // 2. Invia Notifica Completa (Metodo PUT)
     async function inviaNotificaCompleta() {
         const impatto = document.getElementById('impattoSuiServizi').value;
         const ioc = document.getElementById('indicatoriCompromissione').value;
 
-        if(!ioc) {
-            alert("Inserisci almeno un Indicatore di Compromissione (IoC).");
-            return;
-        }
+        if(!ioc) { alert("Inserisci almeno un IoC."); return; }
 
-        const payload = {
-            impattoSuiServizi: impatto,
-            indicatoriDiCompromissione: ioc,
-            faseAttuale: "NOTIFICA_COMPLETA" 
-        };
+        const payload = { impattoSuiServizi: impatto, indicatoriDiCompromissione: ioc, faseAttuale: "NOTIFICA_COMPLETA" };
+
+        try {
+            const response = await fetch(`/api/incidenti/${incidenteIdAttuale}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            if (response.ok) {
+                document.getElementById('step-notificacompleta').style.display = 'none';
+                document.getElementById('step-relazionefinale').style.display = 'block';
+                document.getElementById('display-id-1m').innerText = incidenteIdAttuale;
+                
+                document.getElementById('messaggioSuccesso').innerHTML = `<strong>Fase 2 Superata!</strong> Pratica aggiornata.`;
+            }
+        } catch (error) { console.error(error); alert("Errore aggiornamento pratica."); }
+    }
+
+    async function inviaRelazioneFinale() {
+        const rca = document.getElementById('rootCauseAnalysis').value;
+        const mitigazione = document.getElementById('azioniMitigazione').value;
+
+        if(!rca || !mitigazione) { alert("Compila i campi della Relazione Finale."); return; }
+
+        const payload = { rootCauseAnalysis: rca, azioniMitigazione: mitigazione, faseAttuale: "RELAZIONE_FINALE" };
 
         try {
             const response = await fetch(`/api/incidenti/${incidenteIdAttuale}`, {
@@ -150,18 +176,17 @@
             if (response.ok) {
                 const result = await response.json();
                 
-                document.getElementById('step-notificacompleta').style.display = 'none';
+                document.getElementById('step-relazionefinale').style.display = 'none';
                 
                 const msgBox = document.getElementById('messaggioSuccesso');
-                // Il pulsante per il PDF è inserito qui
-                msgBox.innerHTML = `<strong>Fase 2 Completata con successo!</strong><br>
-                                    La Pratica <strong>${result.id}</strong> è ora nello stato: <strong>${result.faseAttuale}</strong>.<br>
-                                    <button onclick="window.open('/api/incidenti/${result.id}/pdf', '_blank')" style="background-color: #28a745; margin-top:15px;">Scarica PDF Ufficiale</button>`;
+                msgBox.innerHTML = `<strong>Tutti gli adempimenti NIS2 assolti!</strong><br>
+                                    La Pratica <strong>${result.id}</strong> è definitivamente chiusa nello stato: <strong>${result.faseAttuale}</strong>.<br>
+                                    <div class="btn-group">
+                                        <button onclick="window.open('/api/incidenti/${result.id}/pdf', '_blank')" style="background-color: #28a745;">Scarica PDF (Leggibile)</button>
+                                        <button onclick="window.open('/api/incidenti/${result.id}/json', '_blank')" style="background-color: #17a2b8;">Scarica JSON (Strutturato)</button>
+                                    </div>`;
             }
-        } catch (error) {
-            console.error(error);
-            alert("Errore durante l'aggiornamento della pratica.");
-        }
+        } catch (error) { console.error(error); alert("Errore chiusura pratica."); }
     }
 </script>
 
