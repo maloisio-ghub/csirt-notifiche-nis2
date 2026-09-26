@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Portale Notifiche CSIRT Italia</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f7f6; color: #333; padding: 20px; }
+        .container { max-width: 600px; margin: 0 auto; background: #fff; padding: 30px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        h2 { color: #0056b3; border-bottom: 2px solid #eee; padding-bottom: 10px; }
+        h3 { color: #d9534f; }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; font-size: 14px; }
+        input[type="text"], select { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
+        button { background-color: #0056b3; color: white; padding: 12px 20px; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; width: 100%; margin-top: 10px; transition: background 0.3s; }
+        button:hover { background-color: #004494; }
+        button.update-btn { background-color: #d9534f; }
+        button.update-btn:hover { background-color: #c9302c; }
+        #messaggioSuccesso { display: none; background-color: #d4edda; color: #155724; padding: 15px; margin-top: 15px; border-radius: 4px; border: 1px solid #c3e6cb; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>Wizard Notifiche NIS2 / CSIRT</h2>
+    <p>Procedura guidata per la segnalazione di incidente cibernetico (D.Lgs. 138/2024).</p>
+
+    <!-- FASE 1: PRE-NOTIFICA -->
+    <div id="step-prenotifica">
+        <h3>Fase 1: Pre-Notifica (Entro 24h)</h3>
+        
+        <div class="form-group">
+            <label for="denominazioneEnte">Denominazione Ente / Organizzazione:</label>
+            <input type="text" id="denominazioneEnte" placeholder="Es. Azienda Ospedaliera XYZ" required>
+        </div>
+
+        <div class="form-group">
+            <label for="categoriaAcn">Categoria Incidente (Tassonomia ACN):</label>
+            <select id="categoriaAcn">
+                <option value="Malware">Malware / Ransomware</option>
+                <option value="Denial of Service">Denial of Service (DoS/DDoS)</option>
+                <option value="Phishing">Phishing / Social Engineering</option>
+                <option value="Violazione Dati">Violazione di Dati (Data Breach)</option>
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label for="descrizioneIniziale">Descrizione Iniziale dell'Evento:</label>
+            <input type="text" id="descrizioneIniziale" placeholder="Breve sintesi dell'anomalia" required>
+        </div>
+
+        <button onclick="inviaPreNotifica()">Trasmetti Pre-Notifica (24h)</button>
+    </div>
+
+    <!-- FASE 2: NOTIFICA COMPLETA (Inizialmente nascosta) -->
+    <div id="step-notificacompleta" style="display: none;">
+        <h3>Fase 2: Notifica Completa (Entro 72h)</h3>
+        <p>Integrazione dei dati della Pratica ID: <strong id="display-id"></strong></p>
+        
+        <div class="form-group">
+            <label for="impattoSuiServizi">Valutazione Impatto sui Servizi:</label>
+            <select id="impattoSuiServizi">
+                <option value="Basso">Basso (Nessuna interruzione operativa critica)</option>
+                <option value="Medio">Medio (Degrado dei servizi essenziali)</option>
+                <option value="Alto">Alto (Interruzione totale dei servizi essenziali)</option>
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label for="indicatoriCompromissione">Indicatori di Compromissione (IoC) rilevati:</label>
+            <input type="text" id="indicatoriCompromissione" placeholder="Es. IP malevoli, hash, domini C&C..." required>
+        </div>
+
+        <button class="update-btn" onclick="inviaNotificaCompleta()">Aggiorna e Trasmetti Notifica (72h)</button>
+    </div>
+
+    <!-- MESSAGGIO DI SUCCESSO -->
+    <div id="messaggioSuccesso"></div>
+</div>
+
+<script>
+    let incidenteIdAttuale = null;
+
+    // 1. Invia Pre-Notifica (Metodo POST)
+    async function inviaPreNotifica() {
+        const ente = document.getElementById('denominazioneEnte').value;
+        const categoria = document.getElementById('categoriaAcn').value;
+        const descrizione = document.getElementById('descrizioneIniziale').value;
+
+        if(!ente || !descrizione) {
+            alert("Compila tutti i campi della Pre-Notifica.");
+            return;
+        }
+
+        const payload = {
+            denominazioneEnte: ente,
+            categoriaAcn: categoria,
+            descrizioneIniziale: descrizione
+        };
+
+        try {
+            const response = await fetch('/api/incidenti/prenotifica', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            if (response.ok) {
+                const result = await response.json();
+                incidenteIdAttuale = result.id; 
+                
+                // Nascondi Fase 1 e mostra Fase 2
+                document.getElementById('step-prenotifica').style.display = 'none';
+                document.getElementById('step-notificacompleta').style.display = 'block';
+                document.getElementById('display-id').innerText = incidenteIdAttuale;
+                
+                const msgBox = document.getElementById('messaggioSuccesso');
+                msgBox.style.display = 'block';
+                msgBox.innerHTML = `<strong>Fase 1 Superata!</strong> Pratica creata con ID: ${incidenteIdAttuale}. Il timer delle 72h è partito.`;
+            }
+        } catch (error) {
+            console.error(error);
+            alert("Errore di connessione col server.");
+        }
+    }
+
+    // 2. Invia Notifica Completa (Metodo PUT)
+    async function inviaNotificaCompleta() {
+        const impatto = document.getElementById('impattoSuiServizi').value;
+        const ioc = document.getElementById('indicatoriCompromissione').value;
+
+        if(!ioc) {
+            alert("Inserisci almeno un Indicatore di Compromissione (IoC).");
+            return;
+        }
+
+        const payload = {
+            impattoSuiServizi: impatto,
+            indicatoriDiCompromissione: ioc,
+            faseAttuale: "NOTIFICA_COMPLETA" 
+        };
+
+        try {
+            const response = await fetch(`/api/incidenti/${incidenteIdAttuale}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            if (response.ok) {
+                const result = await response.json();
+                
+                document.getElementById('step-notificacompleta').style.display = 'none';
+                
+                const msgBox = document.getElementById('messaggioSuccesso');
+                // Il pulsante per il PDF è inserito qui
+                msgBox.innerHTML = `<strong>Fase 2 Completata con successo!</strong><br>
+                                    La Pratica <strong>${result.id}</strong> è ora nello stato: <strong>${result.faseAttuale}</strong>.<br>
+                                    <button onclick="window.open('/api/incidenti/${result.id}/pdf', '_blank')" style="background-color: #28a745; margin-top:15px;">Scarica PDF Ufficiale</button>`;
+            }
+        } catch (error) {
+            console.error(error);
+            alert("Errore durante l'aggiornamento della pratica.");
+        }
+    }
+</script>
+
+</body>
+</html>
